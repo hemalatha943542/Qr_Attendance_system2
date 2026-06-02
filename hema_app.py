@@ -265,20 +265,33 @@ elif menu == "QR Scanner":
     <!DOCTYPE html>
     <html>
     <head>
-      <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <style>
+    #reader{
+        width:350px;
+        margin:auto;
+        border-radius:15px;
+        overflow:hidden;
+    }
+    </style>
+
     </head>
+
     <body>
 
-    <div id="reader" style="width:100%;"></div>
+    <div id="reader"></div>
 
     <script>
 
-    function onScanSuccess(decodedText) {
+    function onScanSuccess(decodedText){
 
-        const currentUrl = window.parent.location.href.split("?")[0];
+        const currentUrl =
+        window.parent.location.href.split("?")[0];
 
         window.parent.location.href =
-        currentUrl + "?scan_roll=" +
+        currentUrl +
+        "?scan_roll=" +
         encodeURIComponent(decodedText);
     }
 
@@ -286,8 +299,12 @@ elif menu == "QR Scanner":
         "reader",
         {
             fps:10,
-            qrbox:250
-        }
+            qrbox:{
+                width:200,
+                height:200
+            }
+        },
+        false
     );
 
     scanner.render(onScanSuccess);
@@ -296,7 +313,7 @@ elif menu == "QR Scanner":
 
     </body>
     </html>
-    """, height=700)
+    """, height=450)
 # ---------------- MARK ATTENDANCE ----------------
 
 elif menu == "Mark Attendance":
