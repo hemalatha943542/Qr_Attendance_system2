@@ -259,90 +259,44 @@ elif menu == "Students":
 
 elif menu == "QR Scanner":
 
-    st.subheader(
-        "📷 QR Scanner"
-    )
+    st.subheader("📷 QR Attendance Scanner")
 
-    scanner_html = """
+    components.html("""
     <!DOCTYPE html>
     <html>
     <head>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+      <script src="https://unpkg.com/html5-qrcode"></script>
     </head>
-
     <body>
 
-    <video id="video" width="100%" autoplay></video>
-    <canvas id="canvas" hidden></canvas>
+    <div id="reader" style="width:100%;"></div>
 
     <script>
 
-    const video=document.getElementById("video");
-    const canvas=document.getElementById("canvas");
-    const ctx=canvas.getContext("2d");
+    function onScanSuccess(decodedText) {
 
-    navigator.mediaDevices.getUserMedia({
-        video:{
-            facingMode:"environment"
-        }
-    }).then(stream=>{
-        video.srcObject=stream;
-        requestAnimationFrame(scanQR);
-    });
+        const currentUrl = window.parent.location.href.split("?")[0];
 
-    function scanQR(){
-
-        if(video.readyState===video.HAVE_ENOUGH_DATA){
-
-            canvas.width=video.videoWidth;
-            canvas.height=video.videoHeight;
-
-            ctx.drawImage(
-                video,
-                0,
-                0
-            );
-
-            const imageData=
-            ctx.getImageData(
-                0,
-                0,
-                canvas.width,
-                canvas.height
-            );
-
-            const code=jsQR(
-                imageData.data,
-                imageData.width,
-                imageData.height
-            );
-
-            if(code){
-
-                window.parent.location.href=
-                "?scan_roll="+
-                encodeURIComponent(
-                    code.data
-                );
-
-                return;
-            }
-        }
-
-        requestAnimationFrame(scanQR);
+        window.parent.location.href =
+        currentUrl + "?scan_roll=" +
+        encodeURIComponent(decodedText);
     }
+
+    let scanner = new Html5QrcodeScanner(
+        "reader",
+        {
+            fps:10,
+            qrbox:250
+        }
+    );
+
+    scanner.render(onScanSuccess);
 
     </script>
 
     </body>
     </html>
-    """
-
-    components.html(
-        scanner_html,
-        height=500
-    )
-
+    """, height=700)
 # ---------------- MARK ATTENDANCE ----------------
 
 elif menu == "Mark Attendance":
