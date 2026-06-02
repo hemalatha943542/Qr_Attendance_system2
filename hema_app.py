@@ -261,58 +261,90 @@ elif menu == "QR Scanner":
 
     st.subheader("📷 QR Attendance Scanner")
 
+    qr_value = st.text_input(
+        "Scanned QR Result",
+        key="qr_result"
+    )
+
+    if qr_value:
+
+        today = str(date.today())
+
+        c.execute(
+            """
+            SELECT *
+            FROM attendance
+            WHERE roll_no=?
+            AND att_date=?
+            """,
+            (qr_value, today)
+        )
+
+        existing = c.fetchone()
+
+        if existing is None:
+
+            c.execute(
+                """
+                INSERT INTO attendance
+                (roll_no,att_date,status)
+                VALUES(?,?,?)
+                """,
+                (
+                    qr_value,
+                    today,
+                    "Present"
+                )
+            )
+
+            conn.commit()
+
+            st.success(
+                f"✅ Present Marked : {qr_value}"
+            )
+
+        else:
+
+            st.warning(
+                f"⚠ Already Marked : {qr_value}"
+            )
+
     components.html("""
-    <!DOCTYPE html>
-    <html>
-    <head>
     <script src="https://unpkg.com/html5-qrcode"></script>
 
-    <style>
-    #reader{
-        width:350px;
-        margin:auto;
-        border-radius:15px;
-        overflow:hidden;
-    }
-    </style>
-
-    </head>
-
-    <body>
-
-    <div id="reader"></div>
+    <div id="reader" style="width:350px;margin:auto;"></div>
 
     <script>
-
     function onScanSuccess(decodedText){
 
-        const currentUrl =
-        window.parent.location.href.split("?")[0];
+        const input =
+        window.parent.document.querySelector(
+        'input[aria-label="Scanned QR Result"]'
+        );
 
-        window.parent.location.href =
-        currentUrl +
-        "?scan_roll=" +
-        encodeURIComponent(decodedText);
+        if(input){
+
+            input.value = decodedText;
+
+            input.dispatchEvent(
+                new Event('input',{
+                    bubbles:true
+                })
+            );
+        }
     }
 
-    let scanner = new Html5QrcodeScanner(
+    let scanner =
+    new Html5QrcodeScanner(
         "reader",
         {
             fps:10,
-            qrbox:{
-                width:200,
-                height:200
-            }
-        },
-        false
+            qrbox:200
+        }
     );
 
     scanner.render(onScanSuccess);
-
     </script>
-
-    </body>
-    </html>
     """, height=450)
 # ---------------- MARK ATTENDANCE ----------------
 
