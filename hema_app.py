@@ -15,29 +15,54 @@ st.set_page_config(
 
 st.markdown("""
 <style>
+
 .stApp{
 background:linear-gradient(135deg,#87CEEB,#FFD1DC);
 }
 
-h1,h2,h3{
-color:#1e3a8a;
+/* Sidebar */
+section[data-testid="stSidebar"]{
+background:#1f2937;
+}
+
+/* Sidebar text */
+section[data-testid="stSidebar"] *{
+color:white !important;
+}
+
+/* Radio menu labels */
+.stRadio label{
+color:white !important;
 font-weight:bold;
 }
 
-section[data-testid="stSidebar"]{
-background:#ffffff;
+/* Main headings */
+h1,h2,h3{
+color:#ffffff !important;
+font-weight:bold;
 }
 
-.stButton>button{
+/* Input labels */
+label{
+color:#ffffff !important;
+font-weight:bold;
+}
+
+/* Text inputs */
+.stTextInput input{
+background:#232736;
+color:white !important;
+border-radius:10px;
+}
+
+/* Button */
+.stButton button{
 background:#1e90ff;
 color:white;
-border-radius:10px;
 border:none;
+border-radius:10px;
 }
 
-.stButton>button:hover{
-background:#0f5fd7;
-}
 </style>
 """, unsafe_allow_html=True)
 
