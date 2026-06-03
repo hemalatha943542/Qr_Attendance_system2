@@ -1,4 +1,4 @@
-elif menu == "QR Scanner":
+if menu == "QR Scanner":
 
     st.subheader("📷 QR Attendance Scanner")
 
