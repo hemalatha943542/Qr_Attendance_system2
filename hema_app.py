@@ -46,35 +46,31 @@ if menu == "QR Scanner":
     </body>
     </html>
     """, height=450)
+if scan_roll:
 
-    if st.button("Mark Attendance From QR"):
+    today = str(date.today())
 
-        if scan_roll:
+    c.execute("""
+    SELECT *
+    FROM attendance
+    WHERE roll_no=?
+    AND att_date=?
+    """,
+    (scan_roll, today))
 
-            today = str(date.today())
+    existing = c.fetchone()
 
-            c.execute("""
-            SELECT *
-            FROM attendance
-            WHERE roll_no=?
-            AND att_date=?
-            """,
-            (scan_roll, today))
+    if existing:
+        st.warning("Already Marked Today")
+    else:
+        c.execute("""
+        INSERT INTO attendance
+        (roll_no,att_date,status)
+        VALUES(?,?,?)
+        """,
+        (scan_roll, today, "Present"))
 
-            existing = c.fetchone()
+        conn.commit()
 
-            if existing:
-                st.warning("Already Marked Today")
-            else:
-                c.execute("""
-                INSERT INTO attendance
-                (roll_no,att_date,status)
-                VALUES(?,?,?)
-                """,
-                (scan_roll, today, "Present"))
-
-                conn.commit()
-
-                st.success(
-                    f"{scan_roll} Present"
-                )
+        st.success(f"{scan_roll} Present")
+    
