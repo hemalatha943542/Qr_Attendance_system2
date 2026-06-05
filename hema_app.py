@@ -45,7 +45,6 @@ SHEET_ID = "1S6dtYyb8fmDGGtwAnXoerQrudv8ZKILxAy67B-37Bu8"
 SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 def is_rate_limit_error(e):
-    """Check if the exception is a Google Sheets API rate limit (429) error."""
     if isinstance(e, HttpError):
         return e.resp.status == 429
     msg = str(e).lower()
@@ -227,8 +226,8 @@ if st.button("➕ Add Student & Generate QR", use_container_width=True):
     if sname and sroll:
         try:
             if add_student(sname, sroll, sexam):
-                st.success(f"✅ {sname} added!")
-                st.image(generate_qr(sroll), caption=f"QR - {sname}", width=200)
+                st.success(f"✅ {sname} added successfully!")
+                st.image(generate_qr(sroll), caption=f"QR Code - {sname}", width=200)
             else:
                 st.error("❌ Roll number already exists!")
         except Exception as e:
@@ -260,7 +259,7 @@ try:
                 if st.button("🗑️", key=f"d{s[0]}"):
                     delete_student(s[0]); st.rerun()
     else:
-        st.info("No students yet!")
+        st.info("No students added yet!")
 except Exception as e:
     if is_rate_limit_error(e):
         st.warning("⏳ Google Sheets rate limit hit. Please wait 1 minute and refresh.")
@@ -276,10 +275,10 @@ st.markdown('<h2 id="qr-scanner">📷 QR Scanner</h2>', unsafe_allow_html=True)
 SCANNER_PASSWORD = "auxilium2024"
 
 if not st.session_state.scanner_unlocked:
-    st.warning("🔒 Scanner பயன்படுத்த Teacher Password போடுங்கள்!")
+    st.warning("🔒 Please enter Teacher Password to use the Scanner!")
     pwd_col1, pwd_col2 = st.columns([3, 1])
     with pwd_col1:
-        pwd_input = st.text_input("Password", type="password", key="pwd_input", placeholder="Teacher password உள்ளிடுங்கள்...")
+        pwd_input = st.text_input("Password", type="password", key="pwd_input", placeholder="Enter teacher password...")
     with pwd_col2:
         st.write(""); st.write("")
         if st.button("🔓 Unlock", use_container_width=True):
@@ -287,9 +286,9 @@ if not st.session_state.scanner_unlocked:
                 st.session_state.scanner_unlocked = True
                 st.rerun()
             else:
-                st.error("❌ தவறான Password!")
+                st.error("❌ Incorrect Password!")
 else:
-    st.info("📱 QR code scan பண்ணினா automatically Present mark ஆகும்!")
+    st.info("📱 Scan a QR code to automatically mark attendance as Present!")
 
     if st.button("🔒 Lock Scanner"):
         st.session_state.scanner_unlocked = False
@@ -299,14 +298,13 @@ else:
     if st.session_state.scan_result_name:
         n = st.session_state.scan_result_name
         s = st.session_state.scan_result_status
-        if s == "updated":    st.success(f"✅ {n} — Absent → Present Marked!")
-        elif s == "already":  st.info(f"ℹ️ {n} — Already Present!")
-        elif s == "new":      st.success(f"✅ {n} — Present Marked! 🎉")
-        elif s == "notfound": st.error(f"❌ '{n}' — Student not found!")
-        elif s == "ratelimit": st.warning(f"⏳ Rate limit hit. Please wait 1 minute and scan again.")
-        elif s == "error":    st.error(f"❌ Error marking attendance. Please try again.")
+        if s == "updated":     st.success(f"✅ {n} — Marked Present! (was Absent)")
+        elif s == "already":   st.info(f"ℹ️ {n} — Already marked Present!")
+        elif s == "new":       st.success(f"✅ {n} — Present Marked! 🎉")
+        elif s == "notfound":  st.error(f"❌ '{n}' — Student not found!")
+        elif s == "ratelimit": st.warning("⏳ Rate limit hit. Please wait 1 minute and scan again.")
+        elif s == "error":     st.error("❌ Error marking attendance. Please try again.")
 
-    # Read scanned roll from localStorage
     scanned_roll = streamlit_js_eval(
         js_expressions="localStorage.getItem('qr_scanned_roll') || ''",
         key="read_roll"
@@ -325,10 +323,9 @@ else:
         streamlit_js_eval(js_expressions="localStorage.removeItem('qr_scanned_roll')", key="clear_roll")
         st.rerun()
 
-    # Manual submit backup
     col_input, col_btn = st.columns([4, 1])
     with col_input:
-        manual_roll = st.text_input("Roll Number", key="manual_roll", label_visibility="collapsed", placeholder="Manual-ஆ roll number போடலாம்...")
+        manual_roll = st.text_input("Roll Number", key="manual_roll", label_visibility="collapsed", placeholder="Or enter roll number manually...")
     with col_btn:
         if st.button("✅ Mark", use_container_width=True):
             if manual_roll.strip():
@@ -403,8 +400,8 @@ canvas { display:none; }
       <div id="scan-line"></div>
     </div>
   </div>
-  <div id="status">📷 Camera start பண்ண click பண்ணுங்க</div>
-  <button id="start-btn" onclick="startCamera()">📷 Camera Start</button>
+  <div id="status">📷 Click the button below to start the camera</div>
+  <button id="start-btn" onclick="startCamera()">📷 Start Camera</button>
   <canvas id="canvas"></canvas>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
@@ -421,27 +418,27 @@ function setStatus(msg,type){status.textContent=msg;status.className=type||"";}
 function sendRoll(roll) {
   try {
     window.parent.localStorage.setItem('qr_scanned_roll', roll);
-    setStatus("✅ Scanned: " + roll + " — Processing...", "success");
+    setStatus("Scanned: " + roll + " - Processing...", "success");
   } catch(e) {
-    setStatus("❌ Error: " + e.message, "error");
+    setStatus("Error: " + e.message, "error");
   }
 }
 
 function startCamera(){
-  btn.disabled=true; btn.textContent="⏳ Starting...";
+  btn.disabled=true; btn.textContent="Starting...";
   navigator.mediaDevices.getUserMedia({
     video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
   })
   .then(stream=>{
     video.srcObject=stream; video.play();
     scanning=true;
-    setStatus("✅ Camera ready! QR code காட்டுங்க...","info");
-    btn.textContent="✅ Camera On";
+    setStatus("Camera ready! Hold up a QR code...","info");
+    btn.textContent="Camera On";
     requestAnimationFrame(tick);
   })
   .catch(()=>{
-    setStatus("❌ Camera Allow பண்ணுங்க!","error");
-    btn.disabled=false; btn.textContent="📷 Try Again";
+    setStatus("Please allow camera access and try again!","error");
+    btn.disabled=false; btn.textContent="Try Again";
   });
 }
 
@@ -455,16 +452,14 @@ function tick(){
     if(code&&code.data&&!cooldown){
       cooldown=true;
       sendRoll(code.data);
-      setTimeout(()=>{ cooldown=false; setStatus("✅ Ready! Next QR காட்டுங்க...","info"); },3000);
+      setTimeout(()=>{ cooldown=false; setStatus("Ready! Show the next QR code...","info"); },3000);
     }
   }
   requestAnimationFrame(tick);
 }
 
 setInterval(()=>{
-  if(!cooldown && window.parent.localStorage.getItem('qr_scanned_roll')){
-    // still waiting
-  }
+  if(!cooldown && window.parent.localStorage.getItem('qr_scanned_roll')){}
 }, 500);
 </script>
 </body>
@@ -480,7 +475,7 @@ st.markdown('<h2 id="today-summary">📋 Today Summary</h2>', unsafe_allow_html=
 if st.button("🔴 Mark Absent for Remaining Students", use_container_width=True):
     try:
         mark_all_absent()
-        st.success("✅ Absent marked!")
+        st.success("✅ Remaining students marked as Absent!")
         st.rerun()
     except Exception as e:
         if is_rate_limit_error(e):
@@ -503,7 +498,7 @@ try:
             for i,r in enumerate(present_list,1):
                 pp0,pp1,pp2=st.columns([2,2,2])
                 pp0.write(f"{i}. {r[0]}"); pp1.write(r[1]); pp2.write(r[2] if r[2] else "-")
-        else: st.info("No present students yet!")
+        else: st.info("No students marked present yet!")
 
     with col_a:
         st.markdown(f"### ❌ Absent ({len(absent_list)})")
@@ -526,7 +521,7 @@ st.markdown("---")
 # ===================== ATTENDANCE REPORT =====================
 
 st.markdown('<h2 id="attendance-report">📊 Attendance Report</h2>', unsafe_allow_html=True)
-filter_date = st.date_input("📅 Date Select", value=date.today(), key="report_date")
+filter_date = st.date_input("📅 Select Date", value=date.today(), key="report_date")
 if st.button("🔄 Refresh Report", use_container_width=True): st.rerun()
 
 try:
@@ -555,7 +550,7 @@ try:
                     c1.write(f"{i}. {r[0]}"); c2.write(r[1]); c3.write(r[2] if r[2] else "-")
             else: st.info("No absent records!")
     else:
-        st.info(f"📅 {filter_date} — No records!")
+        st.info(f"No records found for {filter_date}!")
 except Exception as e:
     if is_rate_limit_error(e):
         st.warning("⏳ Google Sheets rate limit hit. Please wait 1 minute and refresh.")
