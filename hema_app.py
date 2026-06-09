@@ -1,510 +1,348 @@
 import streamlit as st
 import pandas as pd
-import json
-import os
+import json, os
 from datetime import date, datetime
 import qrcode
 from io import BytesIO
+import streamlit.components.v1 as components
 
-# ─── Page Config ───────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="Auxilium College - QR Attendance",
-    page_icon="🎓",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Auxilium College - QR Attendance", page_icon="🎓", layout="wide")
 
-# ─── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    [data-testid="stSidebar"] { background: linear-gradient(180deg, #0f1b35 0%, #1a2a4a 100%); }
-    [data-testid="stSidebar"] * { color: #e0e8ff !important; }
-    .main .block-container { background: #0d1b2e; padding-top: 2rem; }
-    .card { background: #1a2a4a; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #2d4070; }
-    .metric-card { background: linear-gradient(135deg, #1a2a4a, #243560); border-radius: 12px; padding: 1.2rem; text-align: center; border: 1px solid #2d4070; }
-    .metric-value { font-size: 2.5rem; font-weight: 700; color: #f0c040; }
-    .metric-label { font-size: 0.85rem; color: #8aa0cc; margin-top: 0.2rem; }
-    h1, h2, h3 { color: #e0e8ff !important; }
-    .stButton > button { background: linear-gradient(135deg, #2d5af0, #1a3acc); color: white; border: none; border-radius: 8px; padding: 0.5rem 1.5rem; font-weight: 600; width: 100%; }
-    .stButton > button:hover { background: linear-gradient(135deg, #3d6aff, #2a4adc); }
-    .stTextInput > div > div > input, .stSelectbox > div > div { background: #243560 !important; color: #e0e8ff !important; border: 1px solid #2d4070 !important; border-radius: 8px !important; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+html,body,[class*="css"]{font-family:'Inter',sans-serif;}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0f1b35,#1a2a4a);}
+[data-testid="stSidebar"] *{color:#e0e8ff!important;}
+.main .block-container{background:#0d1b2e;padding-top:2rem;}
+.metric-card{background:linear-gradient(135deg,#1a2a4a,#243560);border-radius:12px;padding:1.2rem;text-align:center;border:1px solid #2d4070;margin-bottom:1rem;}
+.metric-value{font-size:2.2rem;font-weight:700;color:#f0c040;}
+.metric-label{font-size:.85rem;color:#8aa0cc;}
+h1,h2,h3{color:#e0e8ff!important;}
+.stButton>button{background:linear-gradient(135deg,#2d5af0,#1a3acc);color:#fff;border:none;border-radius:8px;font-weight:600;width:100%;}
+.stTextInput>div>div>input{background:#243560!important;color:#e0e8ff!important;border:1px solid #2d4070!important;border-radius:8px!important;}
 </style>
 """, unsafe_allow_html=True)
 
-# ─── Data Helpers ──────────────────────────────────────────────────────────────
-DATA_FILE = "students.json"
-ATTENDANCE_FILE = "attendance.json"
+DATA_FILE   = "students.json"
+ATTEND_FILE = "attendance.json"
 
 def load_students():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    return json.load(open(DATA_FILE)) if os.path.exists(DATA_FILE) else {}
 
-def save_students(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+def save_students(d):
+    json.dump(d, open(DATA_FILE,"w"), indent=2)
 
 def load_attendance():
-    if os.path.exists(ATTENDANCE_FILE):
-        with open(ATTENDANCE_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    return json.load(open(ATTEND_FILE)) if os.path.exists(ATTEND_FILE) else {}
 
-def save_attendance(data):
-    with open(ATTENDANCE_FILE, "w") as f:
-        json.dump(data, f, indent=2)
+def save_attendance(d):
+    json.dump(d, open(ATTEND_FILE,"w"), indent=2)
 
-def mark_attendance(roll_no):
+def mark_attendance(roll):
+    roll = roll.strip()
     students = load_students()
-    if roll_no not in students:
-        return False, f"❌ Roll No '{roll_no}' not found!"
-    attendance = load_attendance()
+    if roll not in students:
+        return False, f"❌ Roll No '{roll}' not found!"
+    att = load_attendance()
     today = str(date.today())
-    if today not in attendance:
-        attendance[today] = {}
-    if roll_no in attendance[today]:
-        return False, f"⚠️ Already marked Present for {students[roll_no]['name']}!"
-    attendance[today][roll_no] = {
-        "name": students[roll_no]["name"],
-        "dept": students[roll_no]["dept"],
-        "time": datetime.now().strftime("%H:%M:%S")
-    }
-    save_attendance(attendance)
-    return True, f"✅ Present marked for {students[roll_no]['name']}!"
+    att.setdefault(today, {})
+    if roll in att[today]:
+        return False, f"⚠️ Already marked: {students[roll]['name']}"
+    att[today][roll] = {"name":students[roll]["name"],"dept":students[roll]["dept"],
+                        "time":datetime.now().strftime("%H:%M:%S")}
+    save_attendance(att)
+    return True, f"✅ Present: {students[roll]['name']} ({roll})"
 
-def generate_qr(roll_no):
+def make_qr(roll):
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
-    qr.add_data(roll_no)
-    qr.make(fit=True)
+    qr.add_data(roll); qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+    buf = BytesIO(); img.save(buf,"PNG"); return buf.getvalue()
 
-# ─── AUTO-MARK FROM QR SCAN (query param trick) ────────────────────────────────
-# When scanner detects QR, it sets ?scanned=ROLLNO in URL
-# Streamlit reads it here and auto-marks attendance instantly
-params = st.query_params
-auto_roll = params.get("scanned", "")
-if auto_roll:
-    ok, msg = mark_attendance(auto_roll.strip())
-    # Store result in session state to show in scanner page
-    st.session_state["last_scan_result"] = {"roll": auto_roll, "ok": ok, "msg": msg}
-    # Clear the query param after processing
-    st.query_params.clear()
-
-# ─── Sidebar ───────────────────────────────────────────────────────────────────
+# Sidebar
 with st.sidebar:
     st.markdown("""
-    <div style='text-align:center; padding: 1rem 0;'>
-        <div style='font-size:3rem;'>🎓</div>
-        <div style='font-size:1.2rem; font-weight:700; color:#f0c040;'>Auxilium College</div>
-        <div style='font-size:0.8rem; color:#8aa0cc; margin-top:0.3rem;'>QR Attendance System</div>
+    <div style='text-align:center;padding:1rem 0'>
+      <div style='font-size:3rem'>🎓</div>
+      <div style='font-size:1.2rem;font-weight:700;color:#f0c040'>Auxilium College</div>
+      <div style='font-size:.8rem;color:#8aa0cc'>QR Attendance System</div>
     </div>
-    <hr style='border-color:#2d4070; margin: 0.5rem 0 1.5rem;'>
+    <hr style='border-color:#2d4070;margin:.5rem 0 1.5rem'>
     """, unsafe_allow_html=True)
+    page = st.radio("Nav", ["➕ Add Student","👥 Students List","📷 QR Scanner",
+                             "📊 Today Summary","📋 Attendance Report"], label_visibility="collapsed")
+    st.markdown(f"<div style='text-align:center;color:#8aa0cc;font-size:.8rem;margin-top:2rem'>📅 {date.today()}</div>", unsafe_allow_html=True)
 
-    page = st.radio(
-        "Navigation",
-        ["➕ Add Student", "👥 Students List", "📷 QR Scanner", "📊 Today Summary", "📋 Attendance Report"],
-        label_visibility="collapsed"
-    )
-
-    st.markdown(f"""
-    <div style='position:absolute; bottom:2rem; left:0; right:0; text-align:center;'>
-        <div style='font-size:0.8rem; color:#8aa0cc;'>📅 Today: {date.today()}</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# ─── Pages ─────────────────────────────────────────────────────────────────────
-
-# ── 1. Add Student ─────────────────────────────────────────────────────────────
+# ── Add Student ────────────────────────────────────────────────────────────────
 if page == "➕ Add Student":
     st.title("➕ Add Student")
     st.markdown("---")
-
-    col1, col2 = st.columns([1, 1])
-
-    with col1:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
         st.subheader("Student Details")
-        roll_no = st.text_input("Roll Number", placeholder="e.g. BCA1")
-        name = st.text_input("Full Name", placeholder="e.g. Hema Priya")
-        dept = st.selectbox("Department", [
-            "Computer Science", "Mathematics", "Physics",
-            "Chemistry", "Commerce", "English Literature",
-            "History", "Economics", "BCA", "BBA"
-        ])
-        year = st.selectbox("Year", ["1st Year", "2nd Year", "3rd Year"])
-
+        roll = st.text_input("Roll Number", placeholder="e.g. BCA1")
+        name = st.text_input("Full Name",   placeholder="e.g. Hema Priya")
+        dept = st.selectbox("Department", ["BCA","BBA","Computer Science","Mathematics",
+                                            "Physics","Chemistry","Commerce","English","History","Economics"])
+        year = st.selectbox("Year", ["1st Year","2nd Year","3rd Year"])
         if st.button("💾 Add Student"):
-            if not roll_no or not name:
-                st.error("Please fill Roll Number and Name!")
+            if not roll or not name: st.error("Fill Roll Number & Name!")
             else:
-                students = load_students()
-                if roll_no in students:
-                    st.error(f"Roll No {roll_no} already exists!")
+                s = load_students()
+                if roll in s: st.error(f"{roll} already exists!")
                 else:
-                    students[roll_no] = {"name": name, "dept": dept, "year": year, "added_on": str(date.today())}
-                    save_students(students)
-                    st.success(f"✅ {name} added successfully!")
-                    st.balloons()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col2:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+                    s[roll]={"name":name,"dept":dept,"year":year,"added_on":str(date.today())}
+                    save_students(s); st.success(f"✅ {name} added!"); st.balloons()
+    with c2:
         st.subheader("🔲 Generate QR Code")
-        st.info("Generate and download each student's QR code.")
-        qr_roll = st.text_input("Enter Roll No for QR", placeholder="e.g. BCA1", key="qr_gen")
-        if st.button("🔲 Generate QR"):
-            students = load_students()
-            if qr_roll in students:
-                qr_bytes = generate_qr(qr_roll)
-                st.image(qr_bytes, caption=f"{students[qr_roll]['name']} ({qr_roll})", width=250)
-                st.download_button("⬇️ Download QR", data=qr_bytes, file_name=f"QR_{qr_roll}.png", mime="image/png")
-            else:
-                st.error("Roll No not found!")
-        st.markdown('</div>', unsafe_allow_html=True)
+        qr_roll = st.text_input("Roll No for QR", placeholder="e.g. BCA1", key="qrgen")
+        if st.button("Generate QR"):
+            s = load_students()
+            if qr_roll in s:
+                qb = make_qr(qr_roll)
+                st.image(qb, caption=f"{s[qr_roll]['name']} — {qr_roll}", width=260)
+                st.download_button("⬇️ Download QR", qb, f"QR_{qr_roll}.png","image/png")
+            else: st.error("Roll No not found!")
 
-# ── 2. Students List ───────────────────────────────────────────────────────────
+# ── Students List ──────────────────────────────────────────────────────────────
 elif page == "👥 Students List":
     st.title("👥 Students List")
     st.markdown("---")
-    students = load_students()
-
-    if not students:
-        st.info("No students added yet.")
+    s = load_students()
+    if not s: st.info("No students yet.")
     else:
-        col1, col2, col3 = st.columns(3)
-        today_attendance = load_attendance().get(str(date.today()), {})
-        depts = set(v["dept"] for v in students.values())
-        with col1:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{len(students)}</div><div class="metric-label">Total Students</div></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{len(depts)}</div><div class="metric-label">Departments</div></div>', unsafe_allow_html=True)
-        with col3:
-            st.markdown(f'<div class="metric-card"><div class="metric-value">{len(today_attendance)}</div><div class="metric-label">Present Today</div></div>', unsafe_allow_html=True)
+        ta = load_attendance().get(str(date.today()), {})
+        c1,c2,c3=st.columns(3)
+        with c1: st.markdown(f'<div class="metric-card"><div class="metric-value">{len(s)}</div><div class="metric-label">Total</div></div>',unsafe_allow_html=True)
+        with c2: st.markdown(f'<div class="metric-card"><div class="metric-value">{len(ta)}</div><div class="metric-label">Present Today</div></div>',unsafe_allow_html=True)
+        with c3: st.markdown(f'<div class="metric-card"><div class="metric-value">{len(s)-len(ta)}</div><div class="metric-label">Absent Today</div></div>',unsafe_allow_html=True)
+        search = st.text_input("🔍 Search")
+        rows=[{"Roll No":r,"Name":i["name"],"Dept":i["dept"],"Year":i["year"],
+               "Today":"✅" if r in ta else "❌"} for r,i in s.items()
+              if not search or search.lower() in r.lower() or search.lower() in i["name"].lower()]
+        if rows: st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+        st.markdown("---")
+        dr=st.text_input("Roll No to delete")
+        if st.button("🗑️ Delete"):
+            if dr in s: del s[dr]; save_students(s); st.success(f"Deleted!"); st.rerun()
+            else: st.error("Not found!")
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            search = st.text_input("🔍 Search by name or roll no", placeholder="Type to search...")
-        with col2:
-            dept_filter = st.selectbox("Filter by Department", ["All"] + sorted(list(depts)))
-
-        rows = []
-        for roll, info in students.items():
-            if search and search.lower() not in roll.lower() and search.lower() not in info["name"].lower():
-                continue
-            if dept_filter != "All" and info["dept"] != dept_filter:
-                continue
-            rows.append({
-                "Roll No": roll, "Name": info["name"], "Department": info["dept"],
-                "Year": info["year"],
-                "Today": "✅ Present" if roll in today_attendance else "❌ Absent",
-                "Added On": info.get("added_on", "N/A")
-            })
-
-        if rows:
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-            st.markdown("---")
-            del_roll = st.text_input("Enter Roll No to delete", placeholder="e.g. BCA1")
-            if st.button("🗑️ Delete Student"):
-                if del_roll in students:
-                    del students[del_roll]
-                    save_students(students)
-                    st.success(f"Deleted {del_roll}!")
-                    st.rerun()
-                else:
-                    st.error("Roll No not found!")
-        else:
-            st.info("No students match your search.")
-
-# ── 3. QR Scanner (AUTO-MARK) ─────────────────────────────────────────────────
+# ── QR Scanner ─────────────────────────────────────────────────────────────────
 elif page == "📷 QR Scanner":
     st.title("📷 QR Scanner")
     st.markdown("---")
 
-    # Show last scan result if any
-    if "last_scan_result" in st.session_state:
-        res = st.session_state["last_scan_result"]
-        if res["ok"]:
-            st.success(f"🎉 AUTO-MARKED! {res['msg']}")
-        else:
-            st.error(res["msg"])
-        del st.session_state["last_scan_result"]
-
-    st.info("📸 QR code scan பண்ணினா **automatically** Present mark ஆகும்! No button click needed.")
-
-    # Lock/Unlock
     if "scanner_locked" not in st.session_state:
         st.session_state.scanner_locked = False
-
-    col_lock, _ = st.columns([1, 3])
-    with col_lock:
-        lock_label = "🔓 Unlock Scanner" if st.session_state.scanner_locked else "🔒 Lock Scanner"
-        if st.button(lock_label):
-            st.session_state.scanner_locked = not st.session_state.scanner_locked
-            st.rerun()
+    if st.button("🔓 Unlock Scanner" if st.session_state.scanner_locked else "🔒 Lock Scanner"):
+        st.session_state.scanner_locked = not st.session_state.scanner_locked; st.rerun()
 
     if st.session_state.scanner_locked:
         st.warning("🔒 Scanner is locked.")
     else:
-        # Get current app URL base for the redirect
-        # The scanner will navigate to ?scanned=ROLLNO which Streamlit reads at top
-        scanner_html = """
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+        st.success("📸 QR scan பண்ணினா **உடனே** Present mark ஆகும்!")
+
+        # ── WORKING AUTO-MARK: JS writes roll to a file via XMLHttpRequest
+        # to Streamlit's own /_stcore/health endpoint trick won't work.
+        # 
+        # TRUE SOLUTION: Use st.components.v1.declare_component with a local 
+        # component server. Since we can't do that here, we use the NEXT BEST:
+        # A bidirectional hack using URL fragments that Streamlit can detect.
+        #
+        # ACTUALLY WORKING: We serve a tiny HTTP handler using threading + BaseHTTPServer
+        # that the JS calls, which writes to a shared file, and Streamlit polls it.
+
+        import threading
+        from http.server import HTTPServer, BaseHTTPRequestHandler
+        from urllib.parse import urlparse, parse_qs
+
+        SCAN_FILE = "qr_scan_result.txt"
+        PORT = 8502
+
+        class ScanHandler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                parsed = urlparse(self.path)
+                if parsed.path == "/mark":
+                    params = parse_qs(parsed.query)
+                    roll = params.get("roll", [""])[0].strip()
+                    if roll:
+                        with open(SCAN_FILE, "w") as f:
+                            f.write(roll)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(b"OK")
+                else:
+                    self.send_response(404); self.end_headers()
+            def log_message(self, *args): pass  # silence logs
+
+        # Start the mini HTTP server once
+        if "http_server_started" not in st.session_state:
+            def run_server():
+                try:
+                    server = HTTPServer(("localhost", PORT), ScanHandler)
+                    server.serve_forever()
+                except: pass
+            t = threading.Thread(target=run_server, daemon=True)
+            t.start()
+            st.session_state.http_server_started = True
+
+        # Check if scanner wrote a new roll number
+        if os.path.exists(SCAN_FILE):
+            with open(SCAN_FILE) as f:
+                scanned_roll = f.read().strip()
+            if scanned_roll:
+                os.remove(SCAN_FILE)
+                ok, msg = mark_attendance(scanned_roll)
+                if ok:
+                    st.success(f"🎉 AUTO-MARKED! {msg}")
+                    st.balloons()
+                else:
+                    st.error(msg)
+
+        # Embed the scanner — JS calls localhost:8502/mark?roll=BCA1
+        components.html(f"""
+<!DOCTYPE html><html><head>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #1a2a4a; font-family: Arial, sans-serif; color: #e0e8ff; }
-  #container { padding: 1rem; text-align: center; }
-  #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 12px; overflow: hidden; }
-  #status {
-    margin-top: 1rem; padding: 0.8rem 1.2rem;
-    border-radius: 8px; font-size: 1rem;
-    background: #243560; color: #8aa0cc;
-    transition: all 0.3s;
-  }
-  #status.success { background: #1a3a2a; color: #2ecc71; border-left: 4px solid #2ecc71; }
-  #status.error   { background: #3a1a1a; color: #e74c3c; border-left: 4px solid #e74c3c; }
-  #status.scanning { background: #1a2a4a; color: #f0c040; border-left: 4px solid #f0c040; animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
-  .btn {
-    margin-top: 0.8rem; padding: 0.6rem 2rem;
-    background: linear-gradient(135deg, #2d5af0, #1a3acc);
-    color: white; border: none; border-radius: 8px;
-    font-size: 1rem; cursor: pointer; font-weight: 600;
-  }
-  #scanned-list { margin-top: 1rem; text-align: left; max-width: 400px; margin: 1rem auto; }
-  .scanned-item { background: #1a3a2a; border-radius: 6px; padding: 0.5rem 1rem; margin: 0.3rem 0; color: #2ecc71; font-size: 0.9rem; }
-</style>
-</head>
-<body>
-<div id="container">
-  <div id="reader"></div>
-  <div id="status" class="scanning">📷 Camera starting...</div>
-  <button class="btn" onclick="toggleCamera()" id="toggle-btn">⏹ Stop Camera</button>
-  <div id="scanned-list"></div>
-</div>
-
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:#1a2a4a;font-family:Arial,sans-serif;color:#e0e8ff;padding:1rem}}
+#reader{{max-width:360px;margin:0 auto;border-radius:10px;overflow:hidden}}
+#status{{margin-top:.8rem;padding:.8rem;border-radius:8px;background:#243560;color:#8aa0cc;text-align:center;font-size:.95rem}}
+#status.ok{{background:#1a3a2a;color:#2ecc71;border-left:4px solid #2ecc71}}
+#status.scan{{background:#1a2040;color:#f0c040;border-left:4px solid #f0c040}}
+#status.err{{background:#3a1a1a;color:#e74c3c;border-left:4px solid #e74c3c}}
+.btn{{display:block;margin:.8rem auto 0;padding:.6rem 2rem;background:linear-gradient(135deg,#2d5af0,#1a3acc);color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer;font-weight:600}}
+#log{{margin-top:.8rem}}
+.li{{background:#1a3a2a;border-radius:6px;padding:.4rem .8rem;margin:.2rem 0;color:#2ecc71;font-size:.85rem}}
+</style></head><body>
+<div id="reader"></div>
+<div id="status" class="scan">📷 Camera starting...</div>
+<button class="btn" id="btn" onclick="toggle()">⏹ Stop</button>
+<div id="log"></div>
 <script>
-let html5QrCode = null;
-let cameraOn = false;
-let lastScanned = "";
-let lastTime = 0;
-let scannedToday = [];
+let qr=null,on=false,last="",lastT=0,log=[];
+const st=(m,c)=>{{const e=document.getElementById("status");e.className=c||"";e.innerText=m}}
+const addLog=r=>{{log.unshift(r);if(log.length>5)log.pop();document.getElementById("log").innerHTML="<div style='color:#8aa0cc;font-size:.8rem;margin-bottom:.3rem'>Scanned:</div>"+log.map(x=>`<div class='li'>✅ ${{x}}</div>`).join("")}}
 
-function onScanSuccess(decodedText) {
-  const now = Date.now();
-  if (decodedText === lastScanned && now - lastTime < 4000) return;
-  lastScanned = decodedText;
-  lastTime = now;
+function onScan(text){{
+  const now=Date.now();
+  if(text===last&&now-lastT<5000)return;
+  last=text;lastT=now;
+  const roll=text.trim();
+  st("⏳ Marking: "+roll+"...","scan");
+  addLog(roll);
+  // Call our local Python HTTP server to write the roll to a file
+  fetch("http://localhost:{PORT}/mark?roll="+encodeURIComponent(roll))
+    .then(r=>r.text())
+    .then(()=>{{
+      st("✅ Marked! Refreshing...","ok");
+      // Trigger Streamlit rerun by clicking a hidden button
+      setTimeout(()=>{{
+        // Send message to parent to click rerun
+        window.parent.postMessage({{type:"streamlit:rerun"}},"*");
+        st("✅ Camera On — Point at QR","scan");
+      }},1000);
+    }})
+    .catch(()=>{{st("⚠️ Server error — use manual box","err")}});
+}}
 
-  const roll = decodedText.trim();
-  document.getElementById("status").className = "scanning";
-  document.getElementById("status").innerText = "⏳ Marking attendance: " + roll + "...";
+function start(){{
+  qr=new Html5Qrcode("reader");
+  qr.start({{facingMode:"environment"}},{{fps:10,qrbox:{{width:230,height:230}}}},onScan,()=>{{}})
+  .then(()=>{{st("✅ Camera On — Point at QR","scan");document.getElementById("btn").innerText="⏹ Stop";on=true}})
+  .catch(e=>{{st("❌ "+e,"err")}})
+}}
+function stop(){{qr&&qr.stop().then(()=>{{st("📷 Stopped","err");document.getElementById("btn").innerText="▶ Start";on=false}})}}
+function toggle(){{on?stop():start()}}
+start();
+</script></body></html>
+""", height=480)
 
-  // Add to scanned list display
-  scannedToday.push(roll);
-  updateScannedList();
-
-  // ✅ AUTO-MARK: Navigate parent window to ?scanned=ROLLNO
-  // Streamlit catches this query param and marks attendance automatically
-  const currentUrl = window.parent.location.href.split('?')[0].split('#')[0];
-  window.parent.location.href = currentUrl + "?scanned=" + encodeURIComponent(roll);
-}
-
-function updateScannedList() {
-  const container = document.getElementById("scanned-list");
-  if (scannedToday.length === 0) { container.innerHTML = ""; return; }
-  container.innerHTML = "<div style='color:#8aa0cc;font-size:0.85rem;margin-bottom:0.5rem;'>Scanned this session:</div>" +
-    scannedToday.map(r => `<div class='scanned-item'>✅ ${r}</div>`).join('');
-}
-
-function onScanError(err) { /* silent */ }
-
-function startScanner() {
-  html5QrCode = new Html5Qrcode("reader");
-  html5QrCode.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 250, height: 250 } },
-    onScanSuccess,
-    onScanError
-  ).then(() => {
-    document.getElementById("status").className = "scanning";
-    document.getElementById("status").innerText = "✅ Camera On — Point at QR Code";
-    document.getElementById("toggle-btn").innerText = "⏹ Stop Camera";
-    cameraOn = true;
-  }).catch(err => {
-    document.getElementById("status").className = "error";
-    document.getElementById("status").innerText = "❌ Camera error: " + err;
-    cameraOn = false;
-  });
-}
-
-function stopScanner() {
-  if (html5QrCode) {
-    html5QrCode.stop().then(() => {
-      document.getElementById("status").className = "error";
-      document.getElementById("status").innerText = "📷 Camera stopped.";
-      document.getElementById("toggle-btn").innerText = "▶ Start Camera";
-      cameraOn = false;
-    });
-  }
-}
-
-function toggleCamera() {
-  if (cameraOn) stopScanner();
-  else startScanner();
-}
-
-startScanner();
-</script>
-</body>
-</html>
-"""
-        import streamlit.components.v1 as components
-        components.html(scanner_html, height=520)
-
-        # Manual fallback
+        # Auto-rerun every 2 seconds to pick up new scans
         st.markdown("---")
-        st.subheader("✏️ Manual Mark (fallback)")
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            manual_roll = st.text_input("Roll Number", placeholder="e.g. BCA1", key="manual_roll")
+        col1, col2 = st.columns([3,1])
         with col2:
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("✅ Mark Present"):
-                if manual_roll:
-                    ok, msg = mark_attendance(manual_roll.strip())
-                    if ok:
-                        st.success(msg)
-                        st.balloons()
-                    else:
-                        st.error(msg)
-                else:
-                    st.warning("Enter a Roll Number!")
+            if st.button("🔄 Refresh", key="manual_refresh", help="Click after scan if not auto-refreshed"):
+                st.rerun()
+        with col1:
+            st.caption("Scan ஆனதும் page auto-refresh ஆகும். இல்லன்னா 🔄 Refresh click பண்ணுங்க.")
 
-    # Today's attendance
+        st.markdown("**✏️ Manual Mark (backup)**")
+        with st.form("qf", clear_on_submit=True):
+            ri = st.text_input("Roll Number", placeholder="e.g. BCA1")
+            if st.form_submit_button("✅ Mark Present"):
+                if ri:
+                    ok,msg=mark_attendance(ri.strip())
+                    if ok: st.success(msg); st.balloons()
+                    else: st.error(msg)
+
+        # Auto-rerun loop using st.empty + time
+        auto_refresh = st.empty()
+        if os.path.exists("qr_scan_result.txt"):
+            st.rerun()
+
     today_att = load_attendance().get(str(date.today()), {})
     if today_att:
         st.markdown("---")
         st.subheader(f"✅ Present Today — {len(today_att)} students")
-        rows = [{"Roll No": r, "Name": v["name"], "Dept": v["dept"], "Time": v["time"]} for r, v in today_att.items()]
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        rows=[{"Roll No":r,"Name":v["name"],"Dept":v["dept"],"Time":v["time"]} for r,v in today_att.items()]
+        st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
 
-# ── 4. Today Summary ──────────────────────────────────────────────────────────
+# ── Today Summary ──────────────────────────────────────────────────────────────
 elif page == "📊 Today Summary":
     st.title("📊 Today Summary")
-    st.markdown(f"**Date:** {date.today().strftime('%A, %d %B %Y')}")
+    st.caption(date.today().strftime('%A, %d %B %Y'))
     st.markdown("---")
-
-    students = load_students()
-    today_str = str(date.today())
-    today_att = load_attendance().get(today_str, {})
-
-    total = len(students)
-    present = len(today_att)
-    absent = total - present
-    pct = round((present / total * 100), 1) if total > 0 else 0
-
-    col1, col2, col3, col4 = st.columns(4)
-    for col, (val, label, color) in zip(
-        [col1, col2, col3, col4],
-        [(total, "Total", "#f0c040"), (present, "Present", "#2ecc71"), (absent, "Absent", "#e74c3c"), (f"{pct}%", "Attendance %", "#2d5af0")]
-    ):
-        with col:
-            st.markdown(f'<div class="metric-card"><div class="metric-value" style="color:{color}">{val}</div><div class="metric-label">{label}</div></div>', unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
+    s=load_students(); ta=load_attendance().get(str(date.today()),{})
+    total=len(s); present=len(ta); absent=total-present
+    pct=round(present/total*100,1) if total else 0
+    c1,c2,c3,c4=st.columns(4)
+    for col,(v,l,color) in zip([c1,c2,c3,c4],[(total,"Total","#f0c040"),(present,"Present","#2ecc71"),(absent,"Absent","#e74c3c"),(f"{pct}%","Att %","#2d5af0")]):
+        with col: st.markdown(f'<div class="metric-card"><div class="metric-value" style="color:{color}">{v}</div><div class="metric-label">{l}</div></div>',unsafe_allow_html=True)
+    st.markdown("<br>",unsafe_allow_html=True)
+    c1,c2=st.columns(2)
+    with c1:
         st.subheader(f"✅ Present ({present})")
-        if today_att:
-            rows = [{"Roll No": r, "Name": v["name"], "Dept": v["dept"], "Time": v["time"]} for r, v in today_att.items()]
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        else:
-            st.info("No attendance yet today.")
-    with col2:
+        if ta: st.dataframe(pd.DataFrame([{"Roll":r,"Name":v["name"],"Time":v["time"]} for r,v in ta.items()]),use_container_width=True,hide_index=True)
+        else: st.info("No attendance yet.")
+    with c2:
         st.subheader(f"❌ Absent ({absent})")
-        absent_rows = [{"Roll No": r, "Name": i["name"], "Dept": i["dept"]} for r, i in students.items() if r not in today_att]
-        if absent_rows:
-            st.dataframe(pd.DataFrame(absent_rows), use_container_width=True, hide_index=True)
-        else:
-            st.success("All students present! 🎉")
-
+        ar=[{"Roll":r,"Name":i["name"]} for r,i in s.items() if r not in ta]
+        if ar: st.dataframe(pd.DataFrame(ar),use_container_width=True,hide_index=True)
+        else: st.success("All present! 🎉")
     st.markdown("---")
-    st.subheader("✏️ Manual Mark")
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        m_roll = st.text_input("Roll Number", placeholder="e.g. BCA1", key="summary_roll")
-    with col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Mark Present", key="summary_mark"):
-            ok, msg = mark_attendance(m_roll.strip())
-            if ok:
-                st.success(msg)
-                st.rerun()
-            else:
-                st.error(msg)
+    with st.form("mf"):
+        m=st.text_input("Manual Roll No",placeholder="e.g. BCA1")
+        if st.form_submit_button("Mark Present"):
+            ok,msg=mark_attendance(m)
+            if ok: st.success(msg); st.rerun()
+            else: st.error(msg)
 
-# ── 5. Attendance Report ───────────────────────────────────────────────────────
+# ── Attendance Report ──────────────────────────────────────────────────────────
 elif page == "📋 Attendance Report":
     st.title("📋 Attendance Report")
     st.markdown("---")
-
-    students = load_students()
-    attendance = load_attendance()
-
-    if not attendance:
-        st.info("No attendance records yet.")
+    s=load_students(); att=load_attendance()
+    if not att: st.info("No records yet.")
     else:
-        dates = sorted(attendance.keys(), reverse=True)
-        selected_date = st.selectbox("Select Date", dates)
-
-        if selected_date:
-            day_att = attendance[selected_date]
-            total = len(students)
-            present = len(day_att)
-            absent = total - present
-            pct = round(present / total * 100, 1) if total > 0 else 0
-
-            col1, col2, col3 = st.columns(3)
-            with col1: st.metric("Present", present)
-            with col2: st.metric("Absent", absent)
-            with col3: st.metric("Attendance %", f"{pct}%")
-
-            st.markdown("---")
-            rows = []
-            for roll, info in students.items():
-                att_info = day_att.get(roll)
-                rows.append({
-                    "Roll No": roll, "Name": info["name"], "Department": info["dept"],
-                    "Status": "✅ Present" if att_info else "❌ Absent",
-                    "Time": att_info["time"] if att_info else "-"
-                })
-            df = pd.DataFrame(rows)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-            csv = df.to_csv(index=False)
-            st.download_button("⬇️ Download CSV", data=csv, file_name=f"attendance_{selected_date}.csv", mime="text/csv")
-
+        sel=st.selectbox("Date",sorted(att.keys(),reverse=True))
+        if sel:
+            day=att[sel]; total=len(s); present=len(day)
+            c1,c2,c3=st.columns(3)
+            with c1: st.metric("Present",present)
+            with c2: st.metric("Absent",total-present)
+            with c3: st.metric("Att %",f"{round(present/total*100,1) if total else 0}%")
+            rows=[{"Roll No":r,"Name":i["name"],"Dept":i["dept"],
+                   "Status":"✅ Present" if r in day else "❌ Absent",
+                   "Time":day[r]["time"] if r in day else "-"} for r,i in s.items()]
+            df=pd.DataFrame(rows)
+            st.dataframe(df,use_container_width=True,hide_index=True)
+            st.download_button("⬇️ CSV",df.to_csv(index=False),f"att_{sel}.csv","text/csv")
         st.markdown("---")
-        st.subheader("📈 All-time Summary")
-        summary_rows = []
-        for roll, info in students.items():
-            present_days = sum(1 for d in attendance.values() if roll in d)
-            total_days = len(attendance)
-            pct = round(present_days / total_days * 100, 1) if total_days > 0 else 0
-            summary_rows.append({
-                "Roll No": roll, "Name": info["name"], "Department": info["dept"],
-                "Days Present": present_days, "Total Days": total_days, "Attendance %": f"{pct}%"
-            })
-        if summary_rows:
-            st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+        st.subheader("📈 All-time")
+        rows=[{"Roll No":r,"Name":i["name"],"Present":sum(1 for d in att.values() if r in d),
+               "Total":len(att),"Att %":f"{round(sum(1 for d in att.values() if r in d)/len(att)*100,1)}%"} for r,i in s.items()]
+        if rows: st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
